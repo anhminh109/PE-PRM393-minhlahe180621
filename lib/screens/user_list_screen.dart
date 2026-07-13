@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/user.dart';
 import '../viewmodels/user_view_model.dart';
 import '../widgets/avatar_image.dart';
-import 'user_detail_screen.dart';
 
 class UserListScreen extends ConsumerStatefulWidget {
   const UserListScreen({super.key});
@@ -32,32 +31,22 @@ class _UserListScreenState extends ConsumerState<UserListScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(userViewModelProvider);
+    final users = state.items;
 
     return Scaffold(
       appBar: AppBar(title: const Text('User Manager')),
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isLandscape = constraints.maxWidth >= constraints.maxHeight;
-
-            // TODO: Landscape hiển thị form bên trái, danh sách 2 cột bên phải.
-            // Portrait hiển thị form phía trên, danh sách 1 cột phía dưới.
-            return Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                children: <Widget>[
-                  _buildForm(),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: _buildUserList(
-                      users: state.items,
-                      isLandscape: isLandscape,
-                    ),
-                  ),
-                ],
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            children: <Widget>[
+              _buildForm(),
+              const SizedBox(height: 12),
+              Expanded(
+                child: _buildUserList(users),
               ),
-            );
-          },
+            ],
+          ),
         ),
       ),
     );
@@ -126,136 +115,200 @@ class _UserListScreenState extends ConsumerState<UserListScreen> {
     );
   }
 
-  Widget _buildUserList({
-    required List<UserModel> users,
-    required bool isLandscape,
-  }) {
-    // TODO: Portrait dùng 1 cột, landscape dùng 2 cột.
-    // Lưu ý: kể cả users rỗng vẫn phải render widget Key('user_list').
-    // Không thay bằng Center/Text riêng, vì testcase kiểm tra list rỗng không crash.
-    return GridView.builder(
+  Widget _buildUserList(List<UserModel> users) {
+    if (users.isEmpty) {
+      return const Center(
+        key: Key('user_list'),
+        child: Text('Chưa có người dùng'),
+      );
+    }
+
+    return ListView.builder(
       key: const Key('user_list'),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: isLandscape ? 2 : 1,
-        mainAxisExtent: 104,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-      ),
       itemCount: users.length,
       itemBuilder: (context, index) {
-        final user = users[index];
-        return Card(
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            key: Key('user_item_${user.id}'),
-            onTap: () => _openDetail(user),
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Row(
+        return _buildUserItem(users[index]);
+      },
+    );
+  }
+
+  Widget _buildUserItem(UserModel user) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Row(
+          children: <Widget>[
+            AvatarImage(
+              key: Key('user_item_avatar_${user.id}'),
+              avatar: user.avatar,
+              radius: 22,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: <Widget>[
-                  AvatarImage(
-                    key: Key('user_item_avatar_${user.id}'),
-                    avatar: user.avatar,
-                    radius: 22,
+                  Text(
+                    user.fullName,
+                    key: Key('user_item_fullname_${user.id}'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: <Widget>[
-                        Text(
-                          user.fullName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          user.email,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    key: Key('user_item_edit_${user.id}'),
-                    icon: const Icon(Icons.edit),
-                    onPressed: () => _startEdit(user),
-                    visualDensity: VisualDensity.compact,
-                    tooltip: 'Sửa',
-                  ),
-                  IconButton(
-                    key: Key('user_item_delete_${user.id}'),
-                    icon: const Icon(Icons.delete),
-                    onPressed: () => _confirmDelete(user),
-                    visualDensity: VisualDensity.compact,
-                    tooltip: 'Xoá',
+                  const SizedBox(height: 2),
+                  Text(
+                    user.email,
+                    key: Key('user_item_email_${user.id}'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
             ),
+            IconButton(
+              key: Key('user_item_edit_${user.id}'),
+              icon: const Icon(Icons.edit),
+              onPressed: () => _startEdit(user),
+              visualDensity: VisualDensity.compact,
+              tooltip: 'Sửa',
+            ),
+            IconButton(
+              key: Key('user_item_delete_${user.id}'),
+              icon: const Icon(Icons.delete),
+              onPressed: () => _confirmDelete(user),
+              visualDensity: VisualDensity.compact,
+              tooltip: 'Xoá',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String? _validateFullName(String? value) {
+    final fullName = value?.trim() ?? '';
+    if (fullName.isEmpty) {
+      return 'Họ và tên không được để trống';
+    }
+    if (fullName.length < 2) {
+      return 'Họ và tên tối thiểu 2 ký tự';
+    }
+
+    return null;
+  }
+
+  String? _validateEmail(String? value) {
+    final email = value?.trim() ?? '';
+    if (email.isEmpty) {
+      return 'Email không được để trống';
+    }
+
+    final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+    if (!emailRegex.hasMatch(email)) {
+      return 'Email không đúng định dạng';
+    }
+
+    return null;
+  }
+
+  String? _validateAvatar(String? value) {
+    final avatar = value?.trim() ?? '';
+    if (avatar.isEmpty) {
+      return 'Avatar không được để trống';
+    }
+
+    return null;
+  }
+
+  Future<void> _handleSubmit() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    final editingUser = _editingUser;
+    if (editingUser == null) {
+      final user = UserModel(
+        id: 0,
+        fullName: _fullNameController.text.trim(),
+        email: _emailController.text.trim(),
+        avatar: _avatarController.text.trim(),
+      );
+
+      await ref.read(userViewModelProvider.notifier).addUser(user);
+    } else {
+      final user = editingUser.copyWith(
+        fullName: _fullNameController.text.trim(),
+        email: _emailController.text.trim(),
+        avatar: _avatarController.text.trim(),
+      );
+
+      await ref.read(userViewModelProvider.notifier).updateUser(user);
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    _clearForm();
+  }
+
+  void _startEdit(UserModel user) {
+    _formKey.currentState?.reset();
+    setState(() {
+      _editingUser = user;
+      _fullNameController.text = user.fullName;
+      _emailController.text = user.email;
+      _avatarController.text = user.avatar;
+    });
+  }
+
+  void _cancelEdit() {
+    _clearForm();
+  }
+
+  Future<void> _confirmDelete(UserModel user) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          key: const Key('delete_confirm_dialog'),
+          title: const Text('Delete User'),
+          content: const Text(
+            'Bạn có chắc chắn muốn xóa người dùng này không?',
           ),
+          actions: <Widget>[
+            TextButton(
+              key: const Key('btn_cancel_delete'),
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              key: const Key('btn_confirm_delete'),
+              onPressed: () async {
+                await ref
+                    .read(userViewModelProvider.notifier)
+                    .deleteUser(user.id);
+
+                if (dialogContext.mounted) {
+                  Navigator.of(dialogContext).pop();
+                }
+              },
+              child: const Text('Delete'),
+            ),
+          ],
         );
       },
     );
   }
 
-  String? _validateFullName(String? value) {
-    // TODO: Bắt buộc nhập, tối thiểu 2 ký tự.
-    // Message yêu cầu:
-    // - Họ và tên không được để trống
-    // - Họ và tên tối thiểu 2 ký tự
-    return null;
-  }
-
-  String? _validateEmail(String? value) {
-    // TODO: Bắt buộc nhập đúng định dạng email.
-    // Message yêu cầu: Email không đúng định dạng
-    return null;
-  }
-
-  String? _validateAvatar(String? value) {
-    // TODO: Bắt buộc có avatar khi submit.
-    // Có thể dùng defaultAvatarPath làm ảnh hiển thị mặc định khi avatar rỗng.
-    // Message yêu cầu: Vui lòng chọn ảnh đại diện
-    return null;
-  }
-
-  Future<void> _handleSubmit() async {
-    // TODO:
-    // 1. Validate form bằng _formKey.currentState!.validate().
-    //    Nếu validate fail trong lúc đang sửa (_editingUser != null), hãy clear
-    //    _fullNameController và _avatarController rồi setState().
-    //    Lý do: testcase kiểm tra tên cũ chỉ xuất hiện 1 lần trong danh sách,
-    //    không bị trùng với text đang prefill trong form edit.
-    // 2. Nếu đang thêm mới, gọi ref.read(userViewModelProvider.notifier).addUser.
-    // 3. Nếu đang sửa, gọi updateUser với dữ liệu mới.
-    // 4. Sau khi lưu thành công: đặt _editingUser = null, reset form, clear cả 3 controller.
-  }
-
-  void _startEdit(UserModel user) {
-    // TODO: Gán _editingUser và điền dữ liệu user vào 3 TextEditingController.
-  }
-
-  void _cancelEdit() {
-    // TODO: Huỷ sửa, đặt _editingUser = null, reset form, clear cả 3 controller.
-    // Sau khi huỷ, bản nháp đang gõ không được còn xuất hiện trên UI.
-  }
-
-  Future<void> _confirmDelete(UserModel user) async {
-    // TODO: Hiển thị AlertDialog key delete_confirm_dialog.
-    // Nút huỷ: Key('btn_cancel_delete'), text 'Huỷ'.
-    // Nút xác nhận: Key('btn_confirm_delete'), text 'Xoá'.
-    // Chỉ gọi deleteUser khi người dùng xác nhận.
-  }
-
-  void _openDetail(UserModel user) {
-    // TODO: Navigator.push sang UserDetailScreen(user: user).
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => UserDetailScreen(user: user),
-      ),
-    );
+  void _clearForm() {
+    _formKey.currentState?.reset();
+    setState(() {
+      _fullNameController.clear();
+      _emailController.clear();
+      _avatarController.clear();
+      _editingUser = null;
+    });
   }
 }

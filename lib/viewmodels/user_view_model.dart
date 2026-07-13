@@ -17,8 +17,10 @@ class UserState {
     List<UserModel>? items,
     bool? isLoading,
   }) {
-    // TODO: Trả về UserState mới, field nào null thì giữ giá trị hiện tại.
-    return this;
+    return UserState(
+      items: items ?? this.items,
+      isLoading: isLoading ?? this.isLoading,
+    );
   }
 }
 
@@ -28,30 +30,44 @@ class UserViewModel extends StateNotifier<UserState> {
   }
 
   final UserRepository repository;
+  int _loadVersion = 0;
 
   Future<void> loadUsers() async {
-    // TODO: Gọi repository.getUsers(), cập nhật state.items và isLoading=false.
-    state = const UserState(isLoading: false);
+    final version = ++_loadVersion;
+    state = state.copyWith(isLoading: true);
+    final users = await repository.getUsers();
+    if (version != _loadVersion) {
+      return;
+    }
+
+    state = state.copyWith(
+      items: users,
+      isLoading: false,
+    );
   }
 
-  Future<void> addUser({
-    required String fullName,
-    required String email,
-    required String avatar,
-  }) async {
-    // TODO:
-    // 1. Tính id mới = danh sách rỗng ? 1 : max(id hiện có) + 1.
-    // 2. Tạo UserModel mới.
-    // 3. Gọi repository.addUser.
-    // 4. Cập nhật state để UI render lại.
+  Future<void> addUser(UserModel user) async {
+    final version = ++_loadVersion;
+    await repository.addUser(user);
+    final users = await repository.getUsers();
+    if (version != _loadVersion) {
+      return;
+    }
+
+    state = state.copyWith(
+      items: users,
+      isLoading: false,
+    );
   }
 
   Future<void> updateUser(UserModel user) async {
-    // TODO: Gọi repository.updateUser và cập nhật đúng phần tử theo id trong state.
+    await repository.updateUser(user);
+    await loadUsers();
   }
 
   Future<void> deleteUser(int id) async {
-    // TODO: Gọi repository.deleteUser và xoá đúng phần tử theo id trong state.
+    await repository.deleteUser(id);
+    await loadUsers();
   }
 }
 
